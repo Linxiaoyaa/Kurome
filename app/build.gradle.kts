@@ -1,0 +1,30 @@
+plugins {
+    // Apply the shared build logic from a convention plugin.
+    // The shared code is located in `buildSrc/src/main/kotlin/kotlin-jvm.gradle.kts`.
+    id("buildsrc.convention.kotlin-jvm")
+    kotlin("plugin.serialization") version "2.1.21"
+    // Apply the Application plugin to add support for building an executable JVM application.
+    application
+}
+
+dependencies {
+    // Project "app" depends on project "utils". (Project paths are separated with ":", so ":utils" refers to the top-level "utils" project.)
+    implementation(project(":utils"))
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("io.netty:netty-all:4.2.9.Final")
+    val ktorVersion = "3.3.3"
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-cio:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.8.1")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    implementation("ch.qos.logback:logback-classic:1.4.14")
+}
+
+application {
+    // Define the Fully Qualified Name for the application main class
+    // (Note that Kotlin compiles `App.kt` to a class with FQN `com.example.app.AppKt`.)
+    mainClass = "com.kurome.app.AppKt"
+}
