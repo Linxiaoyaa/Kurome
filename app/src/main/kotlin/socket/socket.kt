@@ -4,20 +4,24 @@ import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelInitializer
-import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.MultiThreadIoEventLoopGroup
+import io.netty.channel.nio.NioIoHandler
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
 import java.net.InetSocketAddress
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
-
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 class BotClient(val host: String, val port: Int) {
-    private val group = NioEventLoopGroup()
+    private val group = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private var channel: Channel? = null
 
-    // 启动连接（只在程序开始时调用一次）
+
+    private var responsePromise: CompletableFuture<ByteArray>? = null
+
     fun connect() {
         val b = Bootstrap()
         b.group(group)
@@ -25,54 +29,60 @@ class BotClient(val host: String, val port: Int) {
             .remoteAddress(InetSocketAddress(host, port))
             .handler(object : ChannelInitializer<SocketChannel>() {
                 override fun initChannel(ch: SocketChannel) {
-                    // 强烈建议在这里加上拆包器，否则长连接多次收到包会粘在一起
-                    // ch.pipeline().addLast(LengthFieldBasedFrameDecoder(...))
-                    ch.pipeline().addLast(BotClientHandler())
+                    val p = ch.pipeline()
+                    p.addLast(io.netty.handler.codec.LengthFieldBasedFrameDecoder(1024 * 1024, 0, 4, -4, 0
+                    ))
+                    p.addLast(BotClientHandler(this@BotClient))
                 }
             })
 
-        val f = b.connect().sync() // 阻塞直到连接成功
+        val f = b.connect().sync()
         this.channel = f.channel()
-        println("Already Connect :${host}:${port}")
     }
 
-    // 随时调用的发包函数
-    fun send(data: ByteArray) {
-        val ch = channel
-        if (ch != null && ch.isActive) {
-            val buf = Unpooled.copiedBuffer(data)
-            ch.writeAndFlush(buf)
 
-        } else {
-            println("Send Filed")
+    fun send(data: ByteArray, timeout: Long = 10): ByteArray? {
+        val ch = channel
+        if (ch == null || !ch.isActive) return null
+
+
+        val promise = CompletableFuture<ByteArray>()
+        this.responsePromise = promise
+
+
+        val buf = Unpooled.copiedBuffer(data)
+        ch.writeAndFlush(buf)
+
+        return try {
+            promise.get(timeout, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            println("Send Timeout or Error: ${e.message}")
+            null
+        } finally {
+            this.responsePromise = null
         }
     }
 
-    // 关闭连接（程序退出时调用）
+    fun fulfillPromise(data: ByteArray) {
+        responsePromise?.complete(data)
+    }
+
     fun close() {
         group.shutdownGracefully()
-        println("Close")
+        println("Closed")
     }
 }
 
-class BotClientHandler : SimpleChannelInboundHandler<ByteBuf>() {
-
+class BotClientHandler(private val client: BotClient) : SimpleChannelInboundHandler<ByteBuf>() {
     override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
-        val data = ByteArray(msg.readableBytes())
+        val length = msg.readableBytes()
+        val data = ByteArray(length)
         msg.readBytes(data)
 
-        // 这里是你处理所有返回包的地方
-        // 在正式项目中，你通常会在这里根据包头的命令号，分发给不同的处理函数
-        println("Recive [${data.size} bytes]: ${data.toHexString()}")
+        client.fulfillPromise(data)
     }
-
-    override fun channelInactive(ctx: ChannelHandlerContext) {
-        println("Server Already Close Connection")
-        // 这里可以实现自动重连逻辑
-    }
-
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-        println("Internal Bad : ${cause.message}")
+        println("Internal Error: ${cause.message}")
         ctx.close()
     }
 }

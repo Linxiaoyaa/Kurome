@@ -44,13 +44,13 @@ data class SignData(
 )
 
 fun getSecSign(botCommon: BotCommon, cmd: String, buffer: String): SignResponse? {
-   return runBlocking {
+    return runBlocking {
         val body =
-            SignRequest(botCommon.keystore.uin, cmd, buffer, botCommon.keystore.guid, 12345, botCommon.appinfo.qua)
+            SignRequest(botCommon.keystore.uin, cmd, buffer, botCommon.keystore.guid, 114514, botCommon.appinfo.qua)
 
-         try {
+        try {
 
-            val response: SignResponse = client.post("http://127.0.0.1:5000/sign") {
+            val response: SignResponse = client.post("http://127.0.0.1:5178/sign") {
                 header("Content-Type", "application/json")
                 setBody(body)
             }.body()

@@ -1,9 +1,10 @@
 package botsetting
-import com.kurome.app.utils.*
+
+import com.kurome.app.socket.BotClient
 import com.kurome.app.utils.crypto.ecdh.generateEcdhV2
+import com.kurome.app.utils.getRandomBytes
+import com.kurome.app.utils.getRandomString
 import kotlinx.serialization.Serializable
-import org.bouncycastle.jcajce.provider.asymmetric.ec.KeyFactorySpi
-import kotlin.random.Random
 
 @Serializable
 data class WtLoginSdkInfo(
@@ -30,27 +31,68 @@ data class BotAppinfo(
     val subAppId: Long = 537315825L,
     val appClientVersion: UInt = 0u
 )
+
 @Suppress("ArrayInDataClass")
 data class BotKeystore(
-    val guid: String = getRandomBytes(16).toHexString(),
-    val uin : Long = 0L,
-    val qimei : String = "b9a1be24277f73daef6d88ca100016d1730c",
-    val androidId : String = getRandomString(8),
-    val deviceName : String = "Kurome_"+getRandomString(4),
-    var password : String = "",
-    var passwordKey : ByteArray = byteArrayOf(),
-    var password2Key : ByteArray= byteArrayOf(),
-    var TGTGTKey : ByteArray= byteArrayOf(),
-    var ECDH : BotECDH = generateEcdhV2(),
-    var randomKey: ByteArray = getRandomBytes(16),
-    var mac : String = "02:00:00:00:00:00"
+    var guid: String = getRandomBytes(16).toHexString(),
+    var uin: Long = 0L,
+    val qimei: String = "b9a1be24277f73daef6d88ca100016d1730c",
+    val androidId: String = getRandomString(16),
+    val deviceName: String = "Kurome_" + getRandomString(4),
+    var password: String = "",
+    var passwordKey: ByteArray = byteArrayOf(),
+    var password2Key: ByteArray = byteArrayOf(),
+    var ECDH: BotECDH = generateEcdhV2(),
+    var mac: String = "02:00:00:00:00:00",
+    var Iframe: BotIframe = BotIframe(),
+    var WLoginSigs: WLoginSigs = WLoginSigs(),
+    var State: State = State(),
+    var ErrorTitle : String = "",
+    var ErrorMessage: String = ""
 )
 
-data class BotCommon (
-    var keystore: BotKeystore ,
-    var appinfo: BotAppinfo
+data class BotCommon(
+    var keystore: BotKeystore,
+    var appinfo: BotAppinfo,
+    var client: BotClient = BotClient("msfwifi.3g.qq.com", 8080)
 )
+
 data class BotECDH(
     var publicKey: ByteArray = byteArrayOf(),
     var shareKey: ByteArray = byteArrayOf()
+)
+
+data class BotIframe(
+    var url: String = "",
+    var ticket: String = "",
+    var sig: String = "",
+    var randStr: String = ""
+)
+
+data class WLoginSigs(
+    var A2: ByteArray = byteArrayOf(),
+    var A2Key: ByteArray = byteArrayOf(),
+    var D2: ByteArray = byteArrayOf(),
+    var D2Key: ByteArray = byteArrayOf(),
+    var A1: ByteArray = byteArrayOf(),
+    var A1Key: ByteArray = byteArrayOf(),
+    var NoPicSig: ByteArray = byteArrayOf(),
+    var RandomKey: ByteArray = getRandomBytes(16),
+    var TGTGTKey: ByteArray = byteArrayOf(),
+    var Ksid: ByteArray = byteArrayOf(),
+    var SKey: ByteArray = byteArrayOf(),
+    var WtSessionTicket: ByteArray = byteArrayOf(),
+    var WtSessionTicketKey: ByteArray = byteArrayOf(),
+    var SuperKey: ByteArray = byteArrayOf(),
+    var StKey: ByteArray = byteArrayOf(),
+    var St: ByteArray = byteArrayOf(),
+    var StWeb: ByteArray = byteArrayOf()
+
+
+)
+
+data class State(
+    var Tlv104: ByteArray = byteArrayOf(),
+    var Tlv547: ByteArray = byteArrayOf(),
+    var Tlv174: ByteArray = byteArrayOf()
 )

@@ -53,6 +53,7 @@ class TlvBuilder(val bot: BotCommon) {
         val plainBuffer = Buffer().apply {
             writeShort(4)
             writeFully(getRandomBytes(4))
+            writeInt(20)
             writeInt(16)
             writeInt(0)
             writeInt(0)
@@ -61,7 +62,7 @@ class TlvBuilder(val bot: BotCommon) {
             writeInt(0)
             writeByte(1)
             writeFully(bot.keystore.passwordKey)
-            writeFully(bot.keystore.TGTGTKey)
+            writeFully(bot.keystore.WLoginSigs.TGTGTKey)
             writeInt(0)
             writeByte(1)
             writeFully(bot.keystore.guid.hexToByteArray())
@@ -69,7 +70,7 @@ class TlvBuilder(val bot: BotCommon) {
             writeInt(1)
             writeShort(bot.keystore.uin.toString().length.toShort())
             writeString(bot.keystore.uin.toString())
-            writeShort(1)
+            writeShort(0)
         }
         val encryptedData = TeaProvider.encrypt(plainBuffer.readByteArray(), bot.keystore.password2Key)
         writeFully(encryptedData)
@@ -82,7 +83,23 @@ class TlvBuilder(val bot: BotCommon) {
         writeByte(1)
         writeInt(1600000226)
     }
-
+    fun tlv547() = defineTlv(0x547){
+        writeFully("01020101000100000080C8714892C2F6B2EB64033AB1D5E565A0C382B151132D44C6EF1BC8C0F119CEEC8FC918A4BBD1B6D3590D70BB47297309C726204A5A6973F74E20B9273C4C7B4E6167EBF6EDCA3C2134F419980C7BC22EA6242AC5BA754DD109B6F9AE2A9D7ACEF83EE6C673ED21E893D7005C5868724D7BE1F3CD5F1521F4D2CA43D9367B876A00209C94371A86B9B968E61534FCAC3E928412F0FF1145CDEA5C335FD05B2C8A285300AC01020102000100000080C8714892C2F6B2EB64033AB1D5E565A0C382B151132D44C6EF1BC8C0F119CEEC8FC918A4BBD1B6D3590D70BB47297309C726204A5A6973F74E20B9273C4C7B4E6167EBF6EDCA3C2134F419980C7BC22EA6242AC5BA754DD109B6F9AE2A9D7ACEF83EE6C673ED21E893D7005C5868724D7BE1F3CD5F1521F4D2CA43D9367B876A00209C94371A86B9B968E61534FCAC3E928412F0FF1145CDEA5C335FD05B2C8A28530080C8714892C2F6B2EB64033AB1D5E565A0C382B151132D44C6EF1BC8C0F119CEEC8FC918A4BBD1B6D3590D70BB47297309C726204A5A6973F74E20B9273C4C7B4E6167EBF6EDCA3C2134F419980C7BC22EA6242AC5BA754DD109B6F9AE2A9D7ACEF83EE6C673ED21E893D7005C5868724D7BE1F3CD5F1521F4D2CA43D9367B94F7000003A900000D8D".hexToByteArray())
+    }
+    fun tlv174() = defineTlv(0x174){
+        writeFully(bot.keystore.State.Tlv174)
+    }
+    fun tlv17A() = defineTlv(0x17A){
+        writeInt(9)
+    }
+    fun tlv17C() = defineTlv(0x17C){
+        //短信验证码
+        writeShort(bot.keystore.Iframe.ticket.length.toShort())
+        writeString(bot.keystore.Iframe.ticket)
+    }
+    fun tlv197() = defineTlv(0x197){
+        writeByte(0)
+    }
     fun tlv100() = defineTlv(0x100) {
         writeShort(1)
         writeInt(bot.appinfo.ssoVersion)
@@ -90,6 +107,12 @@ class TlvBuilder(val bot: BotCommon) {
         writeInt(bot.appinfo.subAppId.toInt())
         writeInt(0)
         writeInt(bot.appinfo.sdkInfo.mainSigMap.toInt())
+    }
+    fun tlv401() =defineTlv(0x401){
+        writeFully(getRandomBytes(16))
+    }
+    fun tlv198() =defineTlv(0x198){
+        writeByte(0)
     }
 
     fun tlv107() = defineTlv(0x107) {
@@ -106,7 +129,7 @@ class TlvBuilder(val bot: BotCommon) {
         writeFully(md5(bot.keystore.androidId.toByteArray()))
     }
 
-    fun tlv52d() = defineTlv(0x52d) {
+    fun tlv52D() = defineTlv(0x52D) {
         writeFully(
             "0A10623163312D302E312D34393438383134129B014C696E75782076657273696F6E20342E31392E3131302028616E64726F69642D6275696C644077706975352E686F742E636F72702E676F6F676C652E636F6D2920286763632076657273696F6E20342E36203230313230313036202870726572656C6561736529202847434329292023393520534D5020505245454D505420536174204170722032392030323A32313A34372043535420323032331A0352454C22093930303233303532392A4F73616D73756E672F534D2D473935354E2F647265616D326C74656B733A392F4E524439304D2E473935354E4B535531415144432F3930303233303532393A757365722F72656C656173652D6B657973322435323761656339642D646438312D343134372D396436372D6437613663636265323633383A103863623736323634636130326364636342004A3B534D2D473935354E2D757365722039204E524439304D2E473935354E4B53553141514443203930303233303532392072656C656173652D6B657973".hexToByteArray()
         )
@@ -138,7 +161,7 @@ class TlvBuilder(val bot: BotCommon) {
         writeString(bot.keystore.deviceName) //这里应该是品牌
     }
 
-    fun tlv16e() = defineTlv(0x16e) {
+    fun tlv16E() = defineTlv(0x16E) {
         writeString(bot.keystore.deviceName)
     }
 
@@ -146,12 +169,12 @@ class TlvBuilder(val bot: BotCommon) {
 
         val subBuilder = TlvBuilder(bot)
         subBuilder.tlv109()
-        subBuilder.tlv52d()
+        subBuilder.tlv52D()
         subBuilder.tlv124()
         subBuilder.tlv128()
-        subBuilder.tlv16e()
+        subBuilder.tlv16E()
         val subData = subBuilder.build()
-        val encryptedData = TeaProvider.encrypt(subData, bot.keystore.TGTGTKey)
+        val encryptedData = TeaProvider.encrypt(subData, bot.keystore.WLoginSigs.TGTGTKey)
         writeFully(encryptedData)
     }
 
@@ -163,7 +186,7 @@ class TlvBuilder(val bot: BotCommon) {
         writeInt(16)
         writeShort(bot.appinfo.ptVersion.length.toShort())
         writeString(bot.appinfo.ptVersion)
-        writeShort("A6B745BF24A2C277527716F6F36EB68D".length.toShort())
+        writeShort(16)
         writeFully("A6B745BF24A2C277527716F6F36EB68D".hexToByteArray())
     }
 
@@ -261,8 +284,41 @@ class TlvBuilder(val bot: BotCommon) {
         writeFully("4A0460017801880101".hexToByteArray())
 
     }
-
-    fun build(): ByteArray {
+    fun tlv193() = defineTlv(0x193){
+        writeFully(bot.keystore.Iframe.ticket.toByteArray())
+    }
+    fun tlv104() = defineTlv(0x104){
+        writeFully(bot.keystore.State.Tlv104)
+    }
+    fun buildWTLogin(): ByteArray {
+        val finalResult = Buffer()
+        finalResult.writeShort(9)
+        finalResult.writeShort(tlvCount.toShort()) // 先写总数
+        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        return finalResult.readByteArray()
+    }
+    fun buildWTLoginSubmitTicket(): ByteArray {
+        val finalResult = Buffer()
+        finalResult.writeShort(2)
+        finalResult.writeShort(tlvCount.toShort()) // 先写总数
+        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        return finalResult.readByteArray()
+    }
+    fun buildWTLoginSendSMS(): ByteArray {
+        val finalResult = Buffer()
+        finalResult.writeShort(8)
+        finalResult.writeShort(tlvCount.toShort()) // 先写总数
+        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        return finalResult.readByteArray()
+    }
+    fun buildWTLoginCheckSMS(): ByteArray {
+        val finalResult = Buffer()
+        finalResult.writeShort(7)
+        finalResult.writeShort(tlvCount.toShort()) // 先写总数
+        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        return finalResult.readByteArray()
+    }
+    fun build(): ByteArray{
         val finalResult = Buffer()
         finalResult.writeShort(tlvCount.toShort()) // 先写总数
         finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容

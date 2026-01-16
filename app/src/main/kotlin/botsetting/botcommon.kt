@@ -15,22 +15,22 @@ fun createNewBot(uin: Long, password: String, guid: ByteArray): BotCommon {
         ECDH = generateEcdhV2()
     )
 
-    val passwordBytes = password.toByteArray(Charsets.UTF_8)
+    val passwordBytes = password.toByteArray()
     val pwMd5 = md5(passwordBytes)
-
     val baos = ByteArrayOutputStream()
     val dos = DataOutputStream(baos)
-
     dos.write(pwMd5)
     dos.writeInt(0)
     dos.writeInt(uin.toInt())
 
-
     keyStore.password = password
     keyStore.password2Key = md5(baos.toByteArray())
     keyStore.passwordKey = pwMd5
-    keyStore.TGTGTKey = getRandomBytes(16)
+    println("${keyStore.password},${keyStore.passwordKey.toHexString()},${keyStore.password2Key.toHexString()}")
+    keyStore.WLoginSigs.TGTGTKey = getRandomBytes(16)
     keyStore.ECDH = generateEcdhV2()
+    keyStore.uin = uin
+    keyStore.guid = guid.toHexString()
     return BotCommon(
          keyStore,appInfo
     )
