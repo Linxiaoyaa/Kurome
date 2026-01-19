@@ -1,9 +1,9 @@
-package com.kurome.app.utils
+package utils
 
 
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.HexFormat
+
 fun md5(input: ByteArray): ByteArray {
     return MessageDigest.getInstance("MD5").digest(input)
 }

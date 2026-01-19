@@ -1,4 +1,4 @@
-package com.kurome.app.internal.packet.system
+package internal.packet.system
 
 import botsetting.BotCommon
 import io.ktor.client.*
@@ -6,6 +6,7 @@ import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.http.content.Version
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -35,7 +36,19 @@ data class SignResponse(
     val data: SignData
 )
 
-
+@Serializable
+data class EnergyRequest(
+    val uin: Long,
+    val guid: String,
+    val qua: String,
+    val version: String,
+    val ver: String,
+    val data: String
+)
+@Serializable
+data class EnergyResponse(
+    val data: String
+)
 @Serializable
 data class SignData(
     val sign: String,
@@ -63,3 +76,21 @@ fun getSecSign(botCommon: BotCommon, cmd: String, buffer: String): SignResponse?
     }
 }
 
+fun getEnergy(botCommon: BotCommon, subcmd: String): EnergyResponse? {
+    return runBlocking {
+        val body =
+            EnergyRequest(botCommon.keystore.uin,botCommon.keystore.guid,botCommon.appinfo.qua,"9.2.20","6.0.0.2589","810_"+subcmd)
+
+        try {
+
+            val response: EnergyResponse = client.post("http://127.0.0.1:5178/energy"){
+                header("Content-Type", "application/json")
+                setBody(body)
+            }.body()
+            response
+        }   catch (e: Exception){
+            e.printStackTrace()
+            null
+        }
+    }
+}

@@ -1,4 +1,4 @@
-package com.kurome.app.utils.crypto.tea
+package utils.crypto.tea
 
 
 import kotlin.random.Random

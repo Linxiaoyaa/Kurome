@@ -1,9 +1,11 @@
-package com.kurome.app.internal.service.system
+package internal.service.system
 
 import botsetting.BotCommon
-import com.kurome.app.internal.packet.login.TlvBuilder
-import com.kurome.app.internal.packet.system.bufferHead
-import com.kurome.app.utils.crypto.tea.TeaProvider
+import internal.packet.login.TlvBuilder
+import internal.packet.state.online
+import internal.packet.system.bufferHead
+import internal.service.store.SessionManager
+import utils.crypto.tea.TeaProvider
 import io.ktor.utils.io.core.*
 import kotlinx.io.Buffer
 import kotlinx.io.readByteArray
@@ -32,7 +34,7 @@ fun getLogin(botCommon: BotCommon): Int {
         tlv.tlv144()
         tlv.tlv145()
         tlv.tlv147()
-        tlv.tlv154()
+        tlv.tlv154(botCommon.keystore.SsoSeq)
         tlv.tlv141()
         tlv.tlv8()
         tlv.tlv511()
@@ -43,7 +45,7 @@ fun getLogin(botCommon: BotCommon): Int {
         tlv.tlv516()
         tlv.tlv521()
         tlv.tlv525()
-        tlv.tlv544()
+        tlv.tlv544("9")
         tlv.tlv545()
         tlv.tlv548()
         tlv.tlv553()
@@ -59,38 +61,26 @@ fun getLogin(botCommon: BotCommon): Int {
         writeFully(innerData)
         writeByte(0x03.toByte())
     }
-    val sendBody = frameBuffer.readByteArray()
-
-    val retBody =  botCommon.client.send(bufferHead(botCommon, sendBody, "wtlogin.login"))
-    return if (retBody!= null){
-        unPakcetWTLogin(retBody,botCommon)
-    }else{
+    var sendBody = frameBuffer.readByteArray()
+    sendBody = bufferHead(botCommon, sendBody, "wtlogin.login")
+    println("firstBin:${sendBody.toHexString()}")
+    val retBody = botCommon.client.send(sendBody)
+    return if (retBody != null) {
+        unPacketWTLogin(retBody, botCommon)
+    } else {
         -1
     }
 }
 
-fun unPakcetWTLogin(bin: ByteArray, bot: BotCommon): Int {
-
+fun unPacketWTLogin(bin: ByteArray, bot: BotCommon): Int {
     var allBody: ByteArray
     val up = Buffer()
-    up.write(bin).apply {
-        up.readInt()
-        up.readInt()  // 00 00 00 0A
-        up.readByte() // 02
-        up.readInt()  // 00 00 00 00
-        val uinLen = up.readByte().toInt() - 4
-        up.readByteArray(uinLen)
-        allBody = up.readByteArray()
-    }
-    //println("TGTGTKey:${bot.keystore.WLoginSigs.TGTGTKey.toHexString()},ShareKey:${bot.keystore.ECDH.shareKey.toHexString()},RandomKey:${bot.keystore.WLoginSigs.RandomKey.toHexString()}")
-    allBody = TeaProvider.decrypt(allBody, ByteArray(16) { 0 })
-
     var code: Int
-    up.write(allBody).apply {
+    up.write(bin).apply {
         val len = up.readInt() - 4 //len
         up.readByteArray(len)
         up.readInt()
-        up.readByte()
+        up.readByte()  // 02
         up.readShort()
         up.readShort() // 1F 41
         up.readShort() // 08 10
@@ -100,12 +90,21 @@ fun unPakcetWTLogin(bin: ByteArray, bot: BotCommon): Int {
         code = up.readByte().toInt() and 0xFF
         allBody = up.readByteArray((up.size - 1).toInt())
         allBody = TeaProvider.decrypt(allBody, bot.keystore.ECDH.shareKey)
-
     }
+    if (code == 0){
+        up.write(allBody).apply {
+            up.readShort()  //00 02
+            up.readShort()  //00 00
+            up.readShort()   //02
+            allBody = up.readByteArray()
+            getTlvData(allBody,bot,2)
+        return 0
+        }
+    }
+
     up.write(allBody).apply {
         up.readInt()
         val count = up.readShort().toInt()
-
         getTlvData(up.readByteArray(), bot, count)
     }
     return code
@@ -113,18 +112,26 @@ fun unPakcetWTLogin(bin: ByteArray, bot: BotCommon): Int {
 
 fun wtLogin(botCommon: BotCommon) {
     botCommon.client.connect()
-    var code =getLogin(botCommon)
+    var code = getLogin(botCommon)
 
     while (true) {
         println("CheckCode:$code")
         when (code) {
 
-            -1->{
+            -1 -> {
                 println("Login failed, the server did not return any data")
                 break
             }
+
             0 -> {
                 println("Login Success!")
+                SessionManager.saveSigs(botCommon)
+                botCommon.success = true
+                if(online(botCommon)){
+                    println("Online success")
+                }else{
+                    println("Online failed")
+                }
                 break
             }
 
@@ -140,7 +147,7 @@ fun wtLogin(botCommon: BotCommon) {
             160 -> {
                 println("Need Check Phone")
                 code = getLoginSendSMS(botCommon)
-                if(code == 160){
+                if (code == 160) {
                     println("Please enter the SMSCode")
                     botCommon.keystore.Iframe.ticket = readln()
                     code = getLoginCheckSMS(botCommon)
@@ -148,10 +155,11 @@ fun wtLogin(botCommon: BotCommon) {
                 }
                 break
             }
+
             239 -> {
                 println("Need Check Phone")
                 code = getLoginSendSMS(botCommon)
-                if(code == 160){
+                if (code == 160) {
                     println("Please enter the SMSCode")
                     botCommon.keystore.Iframe.ticket = readln()
                     code = getLoginCheckSMS(botCommon)
@@ -159,6 +167,7 @@ fun wtLogin(botCommon: BotCommon) {
                 }
                 break
             }
+
             else -> {
                 println("ErrorCode:${code},${botCommon.keystore.ErrorTitle},${botCommon.keystore.ErrorMessage}")
                 break
@@ -170,79 +179,106 @@ fun wtLogin(botCommon: BotCommon) {
 }
 
 fun getTlvData(bin: ByteArray, botCommon: BotCommon, count: Int) {
-
+    println("Tlvdata:${bin.toHexString()}")
     val up = Buffer().apply { write(bin) }
-    for (i in 0 until count) {
-        val tag = up.readShort().toInt()
-        val length = up.readShort().toInt()
+    for ( i in 0 until count) {
+        val tag = up.readShort().toInt() and 0xFFFF
+        val length = up.readShort().toInt() and 0xFFFF
         val value = up.readByteArray(length)
+        println("tag:${tag.toHexString()},value:${value.toHexString()}")
         when (tag) {
-            0x146 ->{
-                //携带错误信息
+            0x146 -> {
                 val t = Buffer().apply { write(value) }
                 var len = t.readShort()
-                botCommon.keystore.ErrorTitle =  t.readByteArray(len.toInt()).decodeToString()
+                botCommon.keystore.ErrorTitle = t.readByteArray(len.toInt()).decodeToString()
                 len = t.readShort()
-                botCommon.keystore.ErrorMessage =t.readByteArray(len.toInt()).decodeToString()
+                botCommon.keystore.ErrorMessage = t.readByteArray(len.toInt()).decodeToString()
                 break
             }
+
             0x103 -> {
-                botCommon.keystore.WLoginSigs.StWeb =value
+                botCommon.keystore.WLoginSigs.StWeb = value
             }
-            0x143 ->{
+
+            0x143 -> {
                 botCommon.keystore.WLoginSigs.D2 = value
             }
-            0x108->{
+
+            0x108 -> {
                 botCommon.keystore.WLoginSigs.Ksid = value
             }
-            0x10A->{
+
+            0x10A -> {
                 botCommon.keystore.WLoginSigs.A2 = value
-                println("10A:${value.toHexString()}")
+                println("A2:${value.toHexString()}")
             }
-            0x10C->{
+
+            0x10C -> {
                 botCommon.keystore.WLoginSigs.A1Key = value
             }
-            0x10D->{
+
+            0x10D -> {
                 botCommon.keystore.WLoginSigs.A2Key = value
             }
-            0x10E->{
+
+            0x10E -> {
                 botCommon.keystore.WLoginSigs.StKey = value
             }
-            0x114->{
+
+            0x114 -> {
                 botCommon.keystore.WLoginSigs.St = value
             }
-            0x120->{
+
+            0x120 -> {
                 botCommon.keystore.WLoginSigs.SKey = value
             }
-            0x133->{
-                botCommon.keystore.WLoginSigs.WtSessionTicket =value
+
+            0x133 -> {
+                botCommon.keystore.WLoginSigs.WtSessionTicket = value
             }
-            0x134->{
+
+            0x134 -> {
                 botCommon.keystore.WLoginSigs.WtSessionTicketKey = value
             }
-            0x305->{
+
+            0x305 -> {
                 botCommon.keystore.WLoginSigs.D2Key = value
+                println("D2Key:${value.toHexString()}")
             }
-            0x106->{
+
+            0x106 -> {
                 botCommon.keystore.WLoginSigs.A1 = value
             }
-            0x16A->{
+
+            0x16A -> {
                 botCommon.keystore.WLoginSigs.NoPicSig = value
             }
-            0x16D->{
+
+            0x16D -> {
                 botCommon.keystore.WLoginSigs.SuperKey = value
             }
+
             0x192 -> {
                 botCommon.keystore.Iframe.url = value.decodeToString()
             }
-            0x104 ->{
+
+            0x104 -> {
                 botCommon.keystore.State.Tlv104 = value
             }
-            0x547->{
+
+            0x547 -> {
                 botCommon.keystore.State.Tlv547 = value
             }
-            0x174->{
+
+            0x174 -> {
                 botCommon.keystore.State.Tlv174 = value
+            }
+
+            0x119 -> {
+                val tmp = TeaProvider.decrypt(value,botCommon.keystore.WLoginSigs.TGTGTKey)
+                val up = Buffer().apply { write(tmp) }
+                val c = up.readShort().toInt()
+                getTlvData(up.readByteArray(),botCommon,c)
             }
         }
     }
@@ -267,7 +303,7 @@ fun getLoginSubmitTicekt(botCommon: BotCommon): Int {
         tlv.tlv104()
         tlv.tlv116()
         tlv.tlv547()
-        tlv.tlv544()
+        tlv.tlv544("2")
         tlv.tlv542()
         val tlvData = tlv.buildWTLoginSubmitTicket()
         val encryptedTlvs = TeaProvider.encrypt(tlvData, botCommon.keystore.ECDH.shareKey)
@@ -280,15 +316,18 @@ fun getLoginSubmitTicekt(botCommon: BotCommon): Int {
         writeFully(innerData)
         writeByte(0x03.toByte())
     }
-    val sendBody = frameBuffer.readByteArray()
-    val retBody =  botCommon.client.send(bufferHead(botCommon, sendBody, "wtlogin.login"))
-    return if (retBody!= null){
+    var sendBody = frameBuffer.readByteArray()
+    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login")
+    println("secondBin:${sendBody.toHexString()}")
+    val retBody = botCommon.client.send(sendBody)
+    return if (retBody != null) {
 
-        unPakcetWTLogin(retBody,botCommon)
-    }else{
+        unPacketWTLogin(retBody, botCommon)
+    } else {
         -1
     }
 }
+
 fun getLoginSendSMS(botCommon: BotCommon): Int {
     val buffer = Buffer().apply {
         writeShort(8001)
@@ -319,11 +358,13 @@ fun getLoginSendSMS(botCommon: BotCommon): Int {
         writeFully(innerData)
         writeByte(0x03.toByte())
     }
-    val sendBody = frameBuffer.readByteArray()
-    val retBody =  botCommon.client.send(bufferHead(botCommon, sendBody, "wtlogin.login"))
-    return if (retBody!= null){
-        unPakcetWTLogin(retBody,botCommon)
-    }else{
+    var sendBody = frameBuffer.readByteArray()
+    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login")
+    println("thirdBin:${sendBody.toHexString()}")
+    val retBody = botCommon.client.send(sendBody)
+    return if (retBody != null) {
+        unPacketWTLogin(retBody, botCommon)
+    } else {
         -1
     }
 }
@@ -349,7 +390,7 @@ fun getLoginCheckSMS(botCommon: BotCommon): Int {
         tlv.tlv401()
         tlv.tlv198()
         tlv.tlv542()
-        tlv.tlv544()
+        tlv.tlv544("9")
         tlv.tlv553()
         val tlvData = tlv.buildWTLoginCheckSMS()
         val encryptedTlvs = TeaProvider.encrypt(tlvData, botCommon.keystore.ECDH.shareKey)
@@ -362,13 +403,15 @@ fun getLoginCheckSMS(botCommon: BotCommon): Int {
         writeFully(innerData)
         writeByte(0x03.toByte())
     }
-    val sendBody = frameBuffer.readByteArray()
-    val retBody =  botCommon.client.send(bufferHead(botCommon, sendBody, "wtlogin.login"))
+    var sendBody = frameBuffer.readByteArray()
+    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login")
+    println("fourthBin:${sendBody.toHexString()}")
+    val retBody = botCommon.client.send(sendBody)
 
-    return if (retBody!= null){
+    return if (retBody != null) {
 
-        unPakcetWTLogin(retBody,botCommon)
-    }else{
+        unPacketWTLogin(retBody, botCommon)
+    } else {
         -1
     }
 }

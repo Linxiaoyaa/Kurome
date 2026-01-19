@@ -1,12 +1,15 @@
-package com.kurome.app.botsetting
+@file:UseSerializers(ByteArrayHexSerializer::class)
+package botsetting
 
 
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
-import botsetting.*
-import com.kurome.app.utils.md5
-import com.kurome.app.utils.*
-import com.kurome.app.utils.crypto.ecdh.generateEcdhV2
+import internal.packet.system.readFuncBuffer
+import internal.service.store.ByteArrayHexSerializer
+import kotlinx.serialization.UseSerializers
+import utils.md5
+import utils.crypto.ecdh.generateEcdhV2
+import utils.getRandomBytes
 
 
 fun createNewBot(uin: Long, password: String, guid: ByteArray): BotCommon {
@@ -33,5 +36,10 @@ fun createNewBot(uin: Long, password: String, guid: ByteArray): BotCommon {
     keyStore.guid = guid.toHexString()
     return BotCommon(
          keyStore,appInfo
-    )
+    ).apply {
+        client.bot = this
+        client.onDispatchPacket = { data ->
+            readFuncBuffer(data)
+        }
+    }
 }

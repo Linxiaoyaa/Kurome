@@ -1,10 +1,33 @@
+@file:UseSerializers(ByteArrayHexSerializer::class)
 package botsetting
 
-import com.kurome.app.socket.BotClient
-import com.kurome.app.utils.crypto.ecdh.generateEcdhV2
-import com.kurome.app.utils.getRandomBytes
-import com.kurome.app.utils.getRandomString
+import socket.BotClient
+import utils.crypto.ecdh.generateEcdhV2
+import utils.getRandomBytes
+import utils.getRandomString
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.*
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import java.util.HexFormat
+import java.util.concurrent.atomic.AtomicInteger
+object ByteArrayHexSerializer : KSerializer<ByteArray> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ByteArrayHex", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: ByteArray) {
+        encoder.encodeString(HexFormat.of().formatHex(value))
+    }
+
+    override fun deserialize(decoder: Decoder): ByteArray {
+        return HexFormat.of().parseHex(decoder.decodeString())
+    }
+}
 
 @Serializable
 data class WtLoginSdkInfo(
@@ -32,13 +55,13 @@ data class BotAppinfo(
     val appClientVersion: UInt = 0u
 )
 
-@Suppress("ArrayInDataClass")
+@Suppress("ArrayInDataClass")@Serializable
 data class BotKeystore(
     var guid: String = getRandomBytes(16).toHexString(),
     var uin: Long = 0L,
     val qimei: String = "b9a1be24277f73daef6d88ca100016d1730c",
     val androidId: String = getRandomString(16),
-    val deviceName: String = "Kurome_" + getRandomString(4),
+    val deviceName: String = "Kurome_" + getRandomString(6),
     var password: String = "",
     var passwordKey: ByteArray = byteArrayOf(),
     var password2Key: ByteArray = byteArrayOf(),
@@ -48,27 +71,38 @@ data class BotKeystore(
     var WLoginSigs: WLoginSigs = WLoginSigs(),
     var State: State = State(),
     var ErrorTitle : String = "",
-    var ErrorMessage: String = ""
-)
+    var ErrorMessage: String = "",
+    var MsgCookies:ByteArray = getRandomBytes(4),
+    var seq: Int = 10000
 
+){
+    private val ssoSeqCounter: AtomicInteger by lazy { AtomicInteger(seq) }
+    val SsoSeq: Int
+        get() = ssoSeqCounter.getAndIncrement().also {
+            seq = it + 1
+        }
+}
+@Serializable
 data class BotCommon(
     var keystore: BotKeystore,
     var appinfo: BotAppinfo,
+    var success: Boolean = false,
+    @Transient
     var client: BotClient = BotClient("msfwifi.3g.qq.com", 8080)
 )
-
+@Serializable
 data class BotECDH(
     var publicKey: ByteArray = byteArrayOf(),
     var shareKey: ByteArray = byteArrayOf()
 )
-
+@Serializable
 data class BotIframe(
     var url: String = "",
     var ticket: String = "",
     var sig: String = "",
     var randStr: String = ""
 )
-
+@Serializable
 data class WLoginSigs(
     var A2: ByteArray = byteArrayOf(),
     var A2Key: ByteArray = byteArrayOf(),
@@ -90,9 +124,10 @@ data class WLoginSigs(
 
 
 )
-
+@Serializable
 data class State(
     var Tlv104: ByteArray = byteArrayOf(),
     var Tlv547: ByteArray = byteArrayOf(),
-    var Tlv174: ByteArray = byteArrayOf()
+    var Tlv174: ByteArray = byteArrayOf(),
+    var SuccessTlv : ByteArray = byteArrayOf()
 )

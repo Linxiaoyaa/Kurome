@@ -1,4 +1,4 @@
-package com.kurome.app.proto
+package proto
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -35,3 +35,4 @@ data class SsoClientReqPlain2(
     @ProtoNumber(2) val token: ByteArray,
     @ProtoNumber(3) val extra: ByteArray
 )
+
