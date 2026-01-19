@@ -16,7 +16,7 @@
 
 </div>
 
-## Usage
+## Usage 
 
 ### Integrating into Gradle projects (Kotlin/Java)
 
