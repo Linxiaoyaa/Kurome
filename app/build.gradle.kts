@@ -15,15 +15,16 @@ dependencies {
     implementation(project(":utils"))
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    implementation("io.netty:netty-all:4.2.9.Final")
+    implementation("io.github.oshai:kotlin-logging-jvm:7.0.0")
+    implementation("io.netty:netty-all:4.2.13.Final")
     val ktorVersion = "3.3.3"
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.8.1")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    implementation("ch.qos.logback:logback-classic:1.4.14")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.84")
+    implementation("ch.qos.logback:logback-classic:1.5.32")
 }
 
 application {

@@ -8,7 +8,6 @@ fun md5(input: ByteArray): ByteArray {
     return MessageDigest.getInstance("MD5").digest(input)
 }
 
-// 获取随机字节
 
 fun getRandomBytes(size: Int): ByteArray {
     val bytes = ByteArray(size)
