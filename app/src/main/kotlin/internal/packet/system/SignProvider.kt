@@ -6,7 +6,6 @@ import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
-import io.ktor.http.content.Version
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -63,7 +62,7 @@ fun getSecSign(botCommon: BotCommon, cmd: String, buffer: String): SignResponse?
 
         try {
 
-            val response: SignResponse = client.post("http://127.0.0.1:5178/sign") {
+            val response: SignResponse = client.post("http://127.0.0.1:8080/sign") {
                 header("Content-Type", "application/json")
                 setBody(body)
             }.body()
@@ -79,17 +78,16 @@ fun getSecSign(botCommon: BotCommon, cmd: String, buffer: String): SignResponse?
 fun getEnergy(botCommon: BotCommon, subcmd: String): EnergyResponse? {
     return runBlocking {
         val body =
-            EnergyRequest(botCommon.keystore.uin,botCommon.keystore.guid,botCommon.appinfo.qua,"9.2.20","6.0.0.2589","810_"+subcmd)
+            EnergyRequest(botCommon.keystore.uin,botCommon.keystore.guid,botCommon.appinfo.qua,"9.2.85","6.0.0.2591","810_"+subcmd)
 
         try {
 
-            val response: EnergyResponse = client.post("http://127.0.0.1:5178/energy"){
+            val response: EnergyResponse = client.post("http://127.0.0.1:8080/energy"){
                 header("Content-Type", "application/json")
                 setBody(body)
             }.body()
             response
         }   catch (e: Exception){
-            e.printStackTrace()
             null
         }
     }

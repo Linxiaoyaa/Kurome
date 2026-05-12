@@ -8,7 +8,6 @@ import org.bouncycastle.jce.spec.ECPublicKeySpec
 import org.bouncycastle.util.encoders.Hex
 import java.security.*
 import javax.crypto.KeyAgreement
-import java.util.Arrays
 
 fun generateEcdhV2(): BotECDH {
     if (Security.getProvider("BC") == null) {

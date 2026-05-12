@@ -2,7 +2,6 @@ package internal.packet.state
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.protobuf.ProtoBuf
 import botsetting.BotCommon
-import internal.packet.system.bufferHead
 import internal.packet.system.buildOnlineHead
 import proto.system.SsoInfoSyncRequest
 import kotlin.random.Random
@@ -15,13 +14,13 @@ val myProtoBuf = ProtoBuf {
 
 }
 @OptIn(ExperimentalSerializationApi::class)
-fun online(botCommon: BotCommon): Boolean{
-    val bin = buildSsoInfoSyncRequest(botCommon)
-
-    val newSsoInfoSyncRequest = buildOnlineHead(botCommon,bin , "trpc.msg.register_proxy.RegisterProxy.SsoInfoSync")
-    println("online:${newSsoInfoSyncRequest.toHexString()}")
-    val ssoSyncInfoResponseBuffer = botCommon.client.send(newSsoInfoSyncRequest)
-    println(ssoSyncInfoResponseBuffer?.let { "resp:${it.toHexString()}" })
+suspend fun BotCommon.online(): Boolean{
+    val bin = buildSsoInfoSyncRequest(this)
+    val seq = this.keystore.SsoSeq
+    val newSsoInfoSyncRequest = buildOnlineHead(this,bin , "trpc.msg.register_proxy.RegisterProxy.SsoInfoSync",seq)
+    this.log.debug {"online:${newSsoInfoSyncRequest.toHexString()}"}
+    val ssoSyncInfoResponseBuffer = this.client.send(seq,newSsoInfoSyncRequest)
+    this.log.debug {ssoSyncInfoResponseBuffer?.let { "resp:${it.toHexString()}" }}
     if (ssoSyncInfoResponseBuffer!= null){
         val response = myProtoBuf.decodeFromByteArray<SsoSyncInfoResponse>(ssoSyncInfoResponseBuffer)
         response.registerResponse?.let {
@@ -30,8 +29,6 @@ fun online(botCommon: BotCommon): Boolean{
             }
         }
     }
-
-
     return false
 }
 
@@ -44,9 +41,9 @@ fun buildSsoInfoSyncRequest(bot: BotCommon): ByteArray {
         groupLastMsgTime = 0uL,
 
         c2cSyncInfo = SsoC2CSyncInfo(
-            c2cMsgCookie = SsoC2CMsgCookie(c2cLastMsgTime = 0uL),
+            c2cMsgCookie = byteArrayOf(),
             c2cLastMsgTime = 0uL,
-            lastC2CMsgCookie = SsoC2CMsgCookie(c2cLastMsgTime = 0uL)
+            lastC2CMsgCookie = byteArrayOf()
         ),
 
         normalConfig = NormalConfig(
@@ -54,9 +51,9 @@ fun buildSsoInfoSyncRequest(bot: BotCommon): ByteArray {
         ),
 
         registerInfo = RegisterInfo(
-            guid = bot.keystore.guid,
+            guid = bot.keystore.guid.hexToByteArray(),
             kickPC = 0u,
-            buildVer = "27050",
+            buildVer = "35125",
             isFirstRegisterProxyOnline = 0u,
             localeId = 2052u,
             deviceInfo = DeviceInfo(
@@ -75,13 +72,6 @@ fun buildSsoInfoSyncRequest(bot: BotCommon): ByteArray {
             ),
             batteryStatus = 0u
         ),
-
-
-        appState = CurAppState(
-            isDelayRequest = 0u,
-            appStatus = 1u,
-            silenceStatus = 0u
-        )
     )
 
     return myProtoBuf.encodeToByteArray(packet)

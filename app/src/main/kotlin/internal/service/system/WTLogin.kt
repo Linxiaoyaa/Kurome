@@ -1,17 +1,19 @@
 package internal.service.system
 
 import botsetting.BotCommon
+import botsetting.BotManager
 import internal.packet.login.TlvBuilder
 import internal.packet.state.online
 import internal.packet.system.bufferHead
-import internal.service.store.SessionManager
+import io.github.oshai.kotlinlogging.KLogger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import utils.crypto.tea.TeaProvider
 import io.ktor.utils.io.core.*
 import kotlinx.io.Buffer
 import kotlinx.io.readByteArray
 
-
-fun getLogin(botCommon: BotCommon): Int {
+private fun BotCommon.log(): KLogger = KotlinLogging.logger("[${this.keystore.uin}]")
+suspend fun getLogin(botCommon: BotCommon): Int {
     val buffer = Buffer().apply {
         writeShort(8001)
         writeShort(2064)
@@ -61,10 +63,10 @@ fun getLogin(botCommon: BotCommon): Int {
         writeFully(innerData)
         writeByte(0x03.toByte())
     }
+    val seq = botCommon.keystore.SsoSeq
     var sendBody = frameBuffer.readByteArray()
-    sendBody = bufferHead(botCommon, sendBody, "wtlogin.login")
-    println("firstBin:${sendBody.toHexString()}")
-    val retBody = botCommon.client.send(sendBody)
+    sendBody = bufferHead(botCommon, sendBody, "wtlogin.login",seq)
+    val retBody = botCommon.client.send(seq,sendBody)
     return if (retBody != null) {
         unPacketWTLogin(retBody, botCommon)
     } else {
@@ -75,11 +77,8 @@ fun getLogin(botCommon: BotCommon): Int {
 fun unPacketWTLogin(bin: ByteArray, bot: BotCommon): Int {
     var allBody: ByteArray
     val up = Buffer()
-    var code: Int
+    var code: Int = -1
     up.write(bin).apply {
-        val len = up.readInt() - 4 //len
-        up.readByteArray(len)
-        up.readInt()
         up.readByte()  // 02
         up.readShort()
         up.readShort() // 1F 41
@@ -89,7 +88,7 @@ fun unPacketWTLogin(bin: ByteArray, bot: BotCommon): Int {
         up.readShort() // 00 00
         code = up.readByte().toInt() and 0xFF
         allBody = up.readByteArray((up.size - 1).toInt())
-        allBody = TeaProvider.decrypt(allBody, bot.keystore.ECDH.shareKey)
+        allBody = TeaProvider.decrypt(allBody, bot.keystore.ECDH.shareKey)!!
     }
     if (code == 0){
         up.write(allBody).apply {
@@ -110,85 +109,77 @@ fun unPacketWTLogin(bin: ByteArray, bot: BotCommon): Int {
     return code
 }
 
-fun wtLogin(botCommon: BotCommon) {
-    botCommon.client.connect()
-    var code = getLogin(botCommon)
+suspend fun BotCommon.wtLogin() {
+
+    this.client.connect()
+    var code = getLogin(this)
 
     while (true) {
-        println("CheckCode:$code")
+        this.log.debug { "CheckCode: $code" }
         when (code) {
 
             -1 -> {
-                println("Login failed, the server did not return any data")
+                this.log.error { "Login failed" }
+                this.client.disconnect()
                 break
             }
 
             0 -> {
-                println("Login Success!")
-                SessionManager.saveSigs(botCommon)
-                botCommon.success = true
-                if(online(botCommon)){
-                    println("Online success")
-                }else{
-                    println("Online failed")
-                }
+                this.log.info { "Login Success: $code" }
+                BotManager.saveAccount(this.keystore.uin)
+                this.loginInfo.code = 200
+                this.loginInfo.msg = "Login Success"
+                this.success = true
+//                if(online()){
+//                    this.log.info { "Register Success" }
+//                }else{
+//                    this.log.warn { "Register Failed" }
+//                    this.client.disconnect()
+//                }
                 break
             }
 
             2 -> {
-                println("Need Check Ticket:")
-                println(botCommon.keystore.Iframe.url)
-                println("Please enter the ticket")
-                botCommon.keystore.Iframe.ticket = readln()
-                code = getLoginSubmitTicekt(botCommon)
+                this.log.warn { "Need Ticket" }
+                this.log.info { "URL: ${this.keystore.Iframe.url}" }
+                this.log.info {"Please send Ticket:"}
+                this.keystore.Iframe.ticket = readln()
+                code = getLoginSubmitTicekt(this)
                 continue
             }
 
-            160 -> {
-                println("Need Check Phone")
-                code = getLoginSendSMS(botCommon)
+            160,239 -> {
+                this.log.warn { "Need SMS Code" }
+                code = getLoginSendSMS(this)
                 if (code == 160) {
-                    println("Please enter the SMSCode")
-                    botCommon.keystore.Iframe.ticket = readln()
-                    code = getLoginCheckSMS(botCommon)
+                    this.log.warn { "Please send SMS Code:" }
+                    this.keystore.Iframe.ticket = readln()
+                    code = getLoginCheckSMS(this)
                     continue
                 }
                 break
             }
-
-            239 -> {
-                println("Need Check Phone")
-                code = getLoginSendSMS(botCommon)
-                if (code == 160) {
-                    println("Please enter the SMSCode")
-                    botCommon.keystore.Iframe.ticket = readln()
-                    code = getLoginCheckSMS(botCommon)
-                    continue
-                }
-                break
-            }
-
             else -> {
-                println("ErrorCode:${code},${botCommon.keystore.ErrorTitle},${botCommon.keystore.ErrorMessage}")
+                this.log.error { "Login Failed: Code=$code, Title=${this.keystore.ErrorTitle}, Message=${this.keystore.ErrorMessage}" }
                 break
             }
         }
     }
-    println("Login End")
-
 }
 
 fun getTlvData(bin: ByteArray, botCommon: BotCommon, count: Int) {
-    println("Tlvdata:${bin.toHexString()}")
+    val log = botCommon.log()
+    log.trace { "Unpacking TLV : ${bin.toHexString()}" }
     val up = Buffer().apply { write(bin) }
     for ( i in 0 until count) {
         val tag = up.readShort().toInt() and 0xFFFF
         val length = up.readShort().toInt() and 0xFFFF
         val value = up.readByteArray(length)
-        println("tag:${tag.toHexString()},value:${value.toHexString()}")
+        log.trace { "Tag: 0x${tag.toHexString().uppercase()}, Length: $length" }
         when (tag) {
             0x146 -> {
                 val t = Buffer().apply { write(value) }
+                t.readInt()
                 var len = t.readShort()
                 botCommon.keystore.ErrorTitle = t.readByteArray(len.toInt()).decodeToString()
                 len = t.readShort()
@@ -210,7 +201,7 @@ fun getTlvData(bin: ByteArray, botCommon: BotCommon, count: Int) {
 
             0x10A -> {
                 botCommon.keystore.WLoginSigs.A2 = value
-                println("A2:${value.toHexString()}")
+                log.debug {"A2:${value.toHexString()}"}
             }
 
             0x10C -> {
@@ -243,7 +234,7 @@ fun getTlvData(bin: ByteArray, botCommon: BotCommon, count: Int) {
 
             0x305 -> {
                 botCommon.keystore.WLoginSigs.D2Key = value
-                println("D2Key:${value.toHexString()}")
+                log.debug {"D2Key:${value.toHexString()}"}
             }
 
             0x106 -> {
@@ -275,8 +266,8 @@ fun getTlvData(bin: ByteArray, botCommon: BotCommon, count: Int) {
             }
 
             0x119 -> {
-                val tmp = TeaProvider.decrypt(value,botCommon.keystore.WLoginSigs.TGTGTKey)
-                val up = Buffer().apply { write(tmp) }
+                val tmp: ByteArray? = TeaProvider.decrypt(value,botCommon.keystore.WLoginSigs.TGTGTKey)
+                val up = Buffer().apply { tmp?.let { write(it) } }
                 val c = up.readShort().toInt()
                 getTlvData(up.readByteArray(),botCommon,c)
             }
@@ -285,7 +276,7 @@ fun getTlvData(bin: ByteArray, botCommon: BotCommon, count: Int) {
 
 }
 
-fun getLoginSubmitTicekt(botCommon: BotCommon): Int {
+suspend fun getLoginSubmitTicekt(botCommon: BotCommon): Int {
     val buffer = Buffer().apply {
         writeShort(8001)
         writeShort(2064)
@@ -317,9 +308,9 @@ fun getLoginSubmitTicekt(botCommon: BotCommon): Int {
         writeByte(0x03.toByte())
     }
     var sendBody = frameBuffer.readByteArray()
-    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login")
-    println("secondBin:${sendBody.toHexString()}")
-    val retBody = botCommon.client.send(sendBody)
+    val seq = botCommon.keystore.SsoSeq
+    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login",seq)
+    val retBody = botCommon.client.send(seq,sendBody)
     return if (retBody != null) {
 
         unPacketWTLogin(retBody, botCommon)
@@ -328,7 +319,7 @@ fun getLoginSubmitTicekt(botCommon: BotCommon): Int {
     }
 }
 
-fun getLoginSendSMS(botCommon: BotCommon): Int {
+suspend fun getLoginSendSMS(botCommon: BotCommon): Int {
     val buffer = Buffer().apply {
         writeShort(8001)
         writeShort(2064)
@@ -359,9 +350,9 @@ fun getLoginSendSMS(botCommon: BotCommon): Int {
         writeByte(0x03.toByte())
     }
     var sendBody = frameBuffer.readByteArray()
-    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login")
-    println("thirdBin:${sendBody.toHexString()}")
-    val retBody = botCommon.client.send(sendBody)
+    val seq = botCommon.keystore.SsoSeq
+    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login",seq)
+    val retBody = botCommon.client.send(seq,sendBody)
     return if (retBody != null) {
         unPacketWTLogin(retBody, botCommon)
     } else {
@@ -369,7 +360,7 @@ fun getLoginSendSMS(botCommon: BotCommon): Int {
     }
 }
 
-fun getLoginCheckSMS(botCommon: BotCommon): Int {
+suspend fun getLoginCheckSMS(botCommon: BotCommon): Int {
     val buffer = Buffer().apply {
         writeShort(8001)
         writeShort(2064)
@@ -404,12 +395,10 @@ fun getLoginCheckSMS(botCommon: BotCommon): Int {
         writeByte(0x03.toByte())
     }
     var sendBody = frameBuffer.readByteArray()
-    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login")
-    println("fourthBin:${sendBody.toHexString()}")
-    val retBody = botCommon.client.send(sendBody)
-
+    val seq = botCommon.keystore.SsoSeq
+    sendBody=bufferHead(botCommon, sendBody, "wtlogin.login",seq)
+    val retBody = botCommon.client.send(seq,sendBody)
     return if (retBody != null) {
-
         unPacketWTLogin(retBody, botCommon)
     } else {
         -1

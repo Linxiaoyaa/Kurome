@@ -1,14 +1,16 @@
-import io.github.oshai.kotlinlogging.KLogger
+import botsetting.BotManager
+import internal.packet.system.BotNetworkManager
 import io.github.oshai.kotlinlogging.KotlinLogging
+import socket.http.APIHandle
 
 
 private val logger = KotlinLogging.logger {}
 
 fun main() {
-    Log().info { "Welcome to the Kurome!" }
-
+    logger.info { "Welcome to the Kurome!" }
+    BotManager.loadAllSavedAccounts()
+    APIHandle.start(8888)
+    Thread.currentThread().join()
+    BotNetworkManager.shutdown()
 }
 
-fun Log(): KLogger {
-    return logger
-}

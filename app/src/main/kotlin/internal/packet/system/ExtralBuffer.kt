@@ -7,9 +7,9 @@ import kotlinx.io.readByteArray
 import kotlinx.io.writeString
 import utils.crypto.tea.TeaProvider
 
-fun bufferHead(bot: BotCommon, bin: ByteArray, cmd: String): ByteArray {
+fun bufferHead(bot: BotCommon, bin: ByteArray, cmd: String,seq: Int): ByteArray {
     val pack = Buffer().apply {
-        writeInt(114514)
+        writeInt(seq)
         writeInt(bot.appinfo.subAppId.toInt())
         writeInt(bot.appinfo.subAppId.toInt())
         writeInt(16777216)
@@ -77,9 +77,9 @@ fun bufferHead(bot: BotCommon, bin: ByteArray, cmd: String): ByteArray {
     return head.readByteArray()
 }
 
-fun buildOnlineHead(bot: BotCommon, bin: ByteArray, cmd: String): ByteArray {
+fun buildOnlineHead(bot: BotCommon, bin: ByteArray, cmd: String,seq: Int): ByteArray {
     val pack = Buffer().apply {
-        writeInt(bot.keystore.SsoSeq)
+        writeInt(seq)
         writeInt(bot.appinfo.subAppId.toInt())
         writeInt(bot.appinfo.subAppId.toInt())
         writeInt(16777216)

@@ -1,0 +1,31 @@
+<configuration>
+
+    <!-- 1. 定义控制台输出 (具体的输出目的地) -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!-- 颜色格式化配置 -->
+            <pattern>%d{HH:mm:ss.SSS} [%boldMagenta(%thread)] %highlight(%-5level) %cyan(%logger{15}) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 2. 定义异步输出 (包装器) -->
+    <!-- 支撑 10,000 个账号必须用这个，否则主线程会卡在写日志上 -->
+    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <!-- 指向上面定义的 STDOUT -->
+        <appender-ref ref="STDOUT" />
+
+        <!-- 队列大小，越大越不阻塞主线程，但占内存 -->
+        <queueSize>10240</queueSize>
+        <!-- 队列满时是否丢弃 trace/debug 日志，0 表示不丢弃 -->
+        <discardingThreshold>0</discardingThreshold>
+        <!-- 是否提取调用栈数据（开启会变慢，建议关掉） -->
+        <includeCallerData>false</includeCallerData>
+    </appender>
+
+    <!-- 3. 设置日志级别和使用的 Appender -->
+    <!-- 1万个账号建议在生产环境设为 INFO -->
+    <root level="INFO">
+        <appender-ref ref="ASYNC" />
+    </root>
+
+</configuration>

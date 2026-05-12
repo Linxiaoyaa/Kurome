@@ -1,7 +1,7 @@
 package internal.packet.login
 
+
 import botsetting.BotCommon
-import internal.packet.system.getEnergy
 import utils.crypto.tea.TeaProvider
 import utils.getRandomBytes
 import utils.md5
@@ -20,7 +20,7 @@ class TlvBuilder(val bot: BotCommon) {
 
     private fun defineTlv(tag: Int, block: Buffer.() -> Unit) {
         tlvCount++
-        mainBuffer.writeShort(tag.toShort()) // 写入 Tag (2字节)
+        mainBuffer.writeShort(tag.toShort())
 
 
         val contentBuffer = Buffer()
@@ -45,7 +45,7 @@ class TlvBuilder(val bot: BotCommon) {
         writeFully(getRandomBytes(4))
         writeInt(bot.keystore.uin.toInt())
         writeInt((System.currentTimeMillis() / 1000).toInt())
-        writeInt(304455972)
+        writeInt(0)
         writeShort(0)
     }
 
@@ -265,8 +265,9 @@ class TlvBuilder(val bot: BotCommon) {
         writeFully("0001053600020100".hexToByteArray())
     }
 
-    fun tlv544(subcmd: String) = defineTlv(0x544){
-        getEnergy(bot,subcmd)?.data?.let { writeFully(it.hexToByteArray()) }
+    fun tlv544(subCmd: String) = defineTlv(0x544){
+        //getEnergy(bot,subCmd)?.data?.let { writeFully(it.hexToByteArray()) }
+        writeFully("114514".hexToByteArray())
     }
     fun tlv545() = defineTlv(0x545){
         writeString(bot.keystore.qimei)
@@ -293,35 +294,35 @@ class TlvBuilder(val bot: BotCommon) {
     fun buildWTLogin(): ByteArray {
         val finalResult = Buffer()
         finalResult.writeShort(9)
-        finalResult.writeShort(tlvCount.toShort()) // 先写总数
-        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        finalResult.writeShort(tlvCount.toShort())
+        finalResult.writeFully(mainBuffer.readByteArray())
         return finalResult.readByteArray()
     }
     fun buildWTLoginSubmitTicket(): ByteArray {
         val finalResult = Buffer()
         finalResult.writeShort(2)
-        finalResult.writeShort(tlvCount.toShort()) // 先写总数
-        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        finalResult.writeShort(tlvCount.toShort())
+        finalResult.writeFully(mainBuffer.readByteArray())
         return finalResult.readByteArray()
     }
     fun buildWTLoginSendSMS(): ByteArray {
         val finalResult = Buffer()
         finalResult.writeShort(8)
-        finalResult.writeShort(tlvCount.toShort()) // 先写总数
-        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        finalResult.writeShort(tlvCount.toShort())
+        finalResult.writeFully(mainBuffer.readByteArray())
         return finalResult.readByteArray()
     }
     fun buildWTLoginCheckSMS(): ByteArray {
         val finalResult = Buffer()
         finalResult.writeShort(7)
-        finalResult.writeShort(tlvCount.toShort()) // 先写总数
-        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        finalResult.writeShort(tlvCount.toShort())
+        finalResult.writeFully(mainBuffer.readByteArray())
         return finalResult.readByteArray()
     }
     fun build(): ByteArray{
         val finalResult = Buffer()
-        finalResult.writeShort(tlvCount.toShort()) // 先写总数
-        finalResult.writeFully(mainBuffer.readByteArray()) // 再写所有内容
+        finalResult.writeShort(tlvCount.toShort())
+        finalResult.writeFully(mainBuffer.readByteArray())
         return finalResult.readByteArray()
     }
 }
