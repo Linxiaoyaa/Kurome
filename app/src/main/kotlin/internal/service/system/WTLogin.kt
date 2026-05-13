@@ -3,7 +3,6 @@ package internal.service.system
 import botsetting.BotCommon
 import botsetting.BotManager
 import internal.packet.login.TlvBuilder
-import internal.packet.state.online
 import internal.packet.system.bufferHead
 import io.github.oshai.kotlinlogging.KLogger
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -88,7 +87,7 @@ fun unPacketWTLogin(bin: ByteArray, bot: BotCommon): Int {
         up.readShort() // 00 00
         code = up.readByte().toInt() and 0xFF
         allBody = up.readByteArray((up.size - 1).toInt())
-        allBody = TeaProvider.decrypt(allBody, bot.keystore.ECDH.shareKey)!!
+        allBody = TeaProvider.decrypt(allBody, bot.keystore.ECDH.shareKey)
     }
     if (code == 0){
         up.write(allBody).apply {
@@ -111,21 +110,32 @@ fun unPacketWTLogin(bin: ByteArray, bot: BotCommon): Int {
 
 suspend fun BotCommon.wtLogin() {
 
-    this.client.connect()
-    var code = getLogin(this)
+    val conn = this.client.connect()
+    if (!conn){
+        this.log.error { "Login failed" }
+        this.loginInfo.code = -1
+        this.loginInfo.title = "Login Failed"
+        this.loginInfo.msg = "Connect Server Failed"
+        log.error { "Login failed, Connect Server Failed" }
+        return
+    }
+    val code = getLogin(this)
 
     while (true) {
         this.log.debug { "CheckCode: $code" }
         when (code) {
 
             -1 -> {
-                this.log.error { "Login failed" }
+                this.loginInfo.code = -2
+                this.loginInfo.title = "Login Failed"
+                this.loginInfo.msg = "Sign is not online"
                 this.client.disconnect()
+                log.error { "Login failed, Sign is not online" }
                 break
             }
 
             0 -> {
-                this.log.info { "Login Success: $code" }
+                this.log.info { "Login Success: ${0}" }
                 BotManager.saveAccount(this.keystore.uin)
                 this.loginInfo.code = 200
                 this.loginInfo.msg = "Login Success"
@@ -141,22 +151,30 @@ suspend fun BotCommon.wtLogin() {
 
             2 -> {
                 this.log.warn { "Need Ticket" }
-                this.log.info { "URL: ${this.keystore.Iframe.url}" }
-                this.log.info {"Please send Ticket:"}
-                this.keystore.Iframe.ticket = readln()
-                code = getLoginSubmitTicekt(this)
-                continue
+                this.loginInfo.code = 2
+                this.loginInfo.msg = "Need Ticket"
+                this.loginInfo.title = "Need Ticket"
+                this.loginInfo.data = this.keystore.Iframe.url
+//                this
+//                this.log.info { "URL: ${this.keystore.Iframe.url}" }
+//                this.log.info {"Please send Ticket:"}
+//                this.keystore.Iframe.ticket = readln()
+//                code = getLoginSubmitTicekt(this)
+                break
             }
 
             160,239 -> {
                 this.log.warn { "Need SMS Code" }
-                code = getLoginSendSMS(this)
-                if (code == 160) {
-                    this.log.warn { "Please send SMS Code:" }
-                    this.keystore.Iframe.ticket = readln()
-                    code = getLoginCheckSMS(this)
-                    continue
-                }
+                this.loginInfo.code = 160
+                this.loginInfo.msg = "Need SMS Code"
+                this.loginInfo.title = "Need SMS Code"
+//                code = getLoginSendSMS(this)
+//                if (code == 160) {
+//                    this.log.warn { "Please send SMS Code:" }
+//                    this.keystore.Iframe.ticket = readln()
+//                    code = getLoginCheckSMS(this)
+//                    continue
+//                }
                 break
             }
             else -> {
@@ -266,8 +284,8 @@ fun getTlvData(bin: ByteArray, botCommon: BotCommon, count: Int) {
             }
 
             0x119 -> {
-                val tmp: ByteArray? = TeaProvider.decrypt(value,botCommon.keystore.WLoginSigs.TGTGTKey)
-                val up = Buffer().apply { tmp?.let { write(it) } }
+                val tmp: ByteArray = TeaProvider.decrypt(value,botCommon.keystore.WLoginSigs.TGTGTKey)
+                val up = Buffer().apply { write(tmp) }
                 val c = up.readShort().toInt()
                 getTlvData(up.readByteArray(),botCommon,c)
             }

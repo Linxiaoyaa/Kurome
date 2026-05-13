@@ -2,6 +2,7 @@ package internal.packet.system
 
 import botsetting.BotCommon
 import io.github.oshai.kotlinlogging.KLogger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.protobuf.ProtoBuf
 import proto.SsoClientReq
 import proto.SsoClientReqPlain2
@@ -57,30 +58,35 @@ fun buildSSOClientReq(signResponse: SignResponse): ByteArray {
 }
 
 fun decodeHeader(bin: ByteArray, bot: BotCommon): Packet {
+    val logger  = KotlinLogging.logger {}
     var allBody: ByteArray
     val up = Buffer()
-    val encryptType: Byte
+    val encryptType: Int
+    val uin: String
     up.write(bin).apply {
         up.readInt()
         up.readInt()
-        encryptType = up.readByte()
+        encryptType = up.readByte().toInt()
         up.readInt()
         val uinLen = up.readByte() - 4
-        up.readByteArray(uinLen)
+        uin = up.readByteArray(uinLen).toString(Charsets.UTF_8)
         allBody = up.readByteArray()
+
     }
+    logger.debug { "encryptType: $encryptType uin: $uin"  }
     try {
         allBody = when (encryptType) {
-            2.toByte() -> {
-                TeaProvider.decrypt(allBody, ByteArray(16) { 0 })
+            2 -> {
+                logger.debug {"use zero key"}
+                TeaProvider.decrypt(allBody, "00000000000000000000000000000000".hexToByteArray())
             }
 
-            1.toByte() -> {
+            1 -> {
                 TeaProvider.decrypt(allBody, bot.keystore.WLoginSigs.D2Key)
             }
 
             else -> ByteArray(0)
-        }!!
+        }
     } catch (e: Exception) {
         bot.log.error(e) { "Failed to decrypt packet: $encryptType" }
     }

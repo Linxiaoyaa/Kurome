@@ -17,9 +17,11 @@ import io.netty.channel.ChannelOption
 import io.netty.channel.SimpleChannelInboundHandler
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.milliseconds
 
 class BotClient(val host: String, val port: Int, val bot: BotCommon) {
@@ -27,7 +29,8 @@ class BotClient(val host: String, val port: Int, val bot: BotCommon) {
     var onDispatchPacket: ((Packet) -> Unit)? = null
     private val responsePromises = ConcurrentHashMap<Int, CompletableFuture<ByteArray>>()
 
-    fun connect() {
+    suspend fun connect(): Boolean = suspendCancellableCoroutine { continuation ->
+
         val b = Bootstrap()
             .group(BotNetworkManager.group)
             .channel(NioSocketChannel::class.java)
@@ -41,11 +44,17 @@ class BotClient(val host: String, val port: Int, val bot: BotCommon) {
                     )
                 }
             })
-
-        val f = b.connect(host, port).sync()
-        this.channel = f.channel()
-        this.channel?.closeFuture()?.addListener {
-            onDisconnect()
+        b.connect(host, port).addListener { future ->
+            if (future.isSuccess) {
+                val f = future as io.netty.channel.ChannelFuture
+                this.channel = f.channel()
+                this.channel?.closeFuture()?.addListener { onDisconnect() }
+                bot.log.info { "${bot.keystore.uin} 连接成功" }
+                if (continuation.isActive) continuation.resume(true)
+            } else {
+                bot.log.error { "${bot.keystore.uin} 连接失败: ${future.cause()?.message}" }
+                if (continuation.isActive) continuation.resume(false)
+            }
         }
     }
     fun disconnect() {
@@ -60,10 +69,9 @@ class BotClient(val host: String, val port: Int, val bot: BotCommon) {
         channel = null
         onDisconnect()
     }
-   suspend fun send(seq: Int, data: ByteArray, timeout: Long = 10): ByteArray? {
+   suspend fun send(seq: Int, data: ByteArray, timeout: Long = 5000): ByteArray? {
         val ch = channel ?: return null
         if (!ch.isActive) return null
-
 
         val promise = CompletableFuture<ByteArray>()
         responsePromises[seq] = promise
@@ -87,7 +95,7 @@ class BotClient(val host: String, val port: Int, val bot: BotCommon) {
         val result = decodeHeader(data, bot)
         val seq = result.seq
         val body = result.body
-
+        bot.log.debug { result.body.toHexString()+" "+result.seq }
 
         val promise = responsePromises[seq]
         if (promise != null) {
@@ -110,7 +118,6 @@ class BotClientHandler : SimpleChannelInboundHandler<ByteBuf>() {
 
     override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
         val client = ctx.channel().attr(BotNetworkManager.CLIENT_KEY).get() ?: return
-
         val data = ByteArray(msg.readableBytes())
         msg.readBytes(data)
         client.handleIncomingData(data)
@@ -125,7 +132,7 @@ class BotClientHandler : SimpleChannelInboundHandler<ByteBuf>() {
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         val client = ctx.channel().attr(BotNetworkManager.CLIENT_KEY).get()
         val log = client?.bot?.log
-        log?.error(cause) {  "[Bot ${client.bot.keystore.uin}] Network Error: ${cause.message}"}
+        log?.error(cause) {  "[${client.bot.keystore.uin}] Network Error: ${cause.message}"}
         ctx.close()
     }
 }

@@ -41,10 +41,11 @@ data class WtLoginSdkInfo(
     val mainSigMap: UInt = 16724722u
 )
 @Serializable
-data class BotLoginInfo(
+data class BotLoginInfo  (
     var code :Int = 0,
     var title :String = "",
     var msg :String = "",
+    var data: String ?=null
 )
 @Serializable
 data class BotAppinfo(

@@ -10,7 +10,7 @@ object BotNetworkManager {
 
     val group = MultiThreadIoEventLoopGroup(Runtime.getRuntime().availableProcessors() * 2, NioIoHandler.newFactory())
 
-    val CLIENT_KEY: AttributeKey<BotClient?>? = AttributeKey.valueOf<BotClient>("BotClient")
+    val CLIENT_KEY: AttributeKey<BotClient> = AttributeKey.valueOf("BotClient")
 
     fun shutdown() {
         group.shutdownGracefully()

@@ -59,9 +59,7 @@ fun getSecSign(botCommon: BotCommon, cmd: String, buffer: String): SignResponse?
     return runBlocking {
         val body =
             SignRequest(botCommon.keystore.uin, cmd, buffer, botCommon.keystore.guid, 114514, botCommon.appinfo.qua)
-
         try {
-
             val response: SignResponse = client.post("http://127.0.0.1:8080/sign") {
                 header("Content-Type", "application/json")
                 setBody(body)
@@ -78,7 +76,7 @@ fun getSecSign(botCommon: BotCommon, cmd: String, buffer: String): SignResponse?
 fun getEnergy(botCommon: BotCommon, subcmd: String): EnergyResponse? {
     return runBlocking {
         val body =
-            EnergyRequest(botCommon.keystore.uin,botCommon.keystore.guid,botCommon.appinfo.qua,"9.2.85","6.0.0.2591","810_"+subcmd)
+            EnergyRequest(botCommon.keystore.uin,botCommon.keystore.guid,botCommon.appinfo.qua,botCommon.appinfo.ptVersion,botCommon.appinfo.sdkInfo.sdkVersion,"810_"+subcmd)
 
         try {
 

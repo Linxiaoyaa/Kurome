@@ -12,7 +12,6 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger {}
 object BotManager {
@@ -26,21 +25,25 @@ object BotManager {
     init {
         if (!deviceDir.exists()) deviceDir.mkdirs()
     }
-    fun registerBot(bot: BotCommon): BotCommon {
+   fun registerBot(bot: BotCommon): BotCommon {
         val uin = bot.keystore.uin
         bot.initClient("msfwifi.3g.qq.com", 8080)
         bot.client.onDispatchPacket = { data ->
             bot.keystore.MsgCookies = data.msgCookies
             logger.info { "cmd: ${data.cmd} buffer: ${data.body.toHexString()}" }
         }
-        thread {
-            try {
-                bot.client.connect()
-                activeBots[bot.keystore.uin] = bot
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+//       AppScope.botScope.launch {
+//            try {
+//                val isConnected = bot.client.connect()
+//                if (isConnected) {
+//                    activeBots[uin] = bot
+//                } else {
+//                    logger.error { "Connected Server Failed" }
+//                }
+//            } catch (e: Exception) {
+//                e.printStackTrace()
+//            }
+//        }
 
         activeBots[uin] = bot
         return bot
@@ -57,10 +60,6 @@ object BotManager {
         }
     }
     fun getBot(uin: Long): BotCommon? = activeBots[uin]
-    fun getAllBots() = activeBots.values
-    fun forEachBot(action: (BotCommon) -> Unit) {
-        activeBots.values.forEach(action)
-    }
     fun getCount(): Int = activeBots.size
     fun addAccount(uin: Long, password: String, guid: ByteArray): BotCommon {
         if (activeBots.containsKey(uin)) {
